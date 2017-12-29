@@ -6,6 +6,8 @@ Based off the VCV sequencer, this module makes it easier to generate
 specific notes and run them up, up/down, or randomly. Each row's notes can
 be offset by an input voltage.
 
+![Arpeggiator panel](docs/arpeggiator.png)
+
 The pitch for each step is set by two knobs. The upper left knob sets the
 semitone and the lower right sets the octave.
 
@@ -18,4 +20,4 @@ suggestions for improvement.
 
 # Autherial Information Module
 
-- Jim Menard, mailto:jim@jimmenard.com
+- Jim Menard, jim@jimmenard.com
