@@ -1,105 +1,18 @@
 #include "Arpeggiator.hpp"
-#include "dsp/digital.hpp"
 
-struct Arpeggiator : Module {
-	enum ParamIds {
-		CLOCK_PARAM,
-		RUN_PARAM,
-		RESET_PARAM,
-		STEPS_PARAM,
-    MODE_PARAM,
-		ROW1_PARAM,
-		ROW2_PARAM = ROW1_PARAM + 8,
-		ROW3_PARAM = ROW2_PARAM + 8,
-    ROW1_OCTAVE_PARAM = ROW3_PARAM + 8,
-    ROW2_OCTAVE_PARAM = ROW1_OCTAVE_PARAM + 8,
-    ROW3_OCTAVE_PARAM = ROW2_OCTAVE_PARAM + 8,
-		GATE_PARAM = ROW3_OCTAVE_PARAM + 8,
-    DIRECTION_MODE_PARAM = GATE_PARAM + 8,
-		NUM_PARAMS
-	};
-	enum InputIds {
-		CLOCK_INPUT,
-		EXT_CLOCK_INPUT,
-		RESET_INPUT,
-		STEPS_INPUT,
-    ROW1_PITCH_INPUT,
-    ROW2_PITCH_INPUT,
-    ROW3_PITCH_INPUT,
-		NUM_INPUTS
-	};
-	enum OutputIds {
-		GATES_OUTPUT,
-		ROW1_OUTPUT,
-		ROW2_OUTPUT,
-		ROW3_OUTPUT,
-		GATE_OUTPUT,
-		NUM_OUTPUTS = GATE_OUTPUT + 8
-	};
-	enum LightIds {
-		RUNNING_LIGHT,
-		RESET_LIGHT,
-		GATES_LIGHT,
-		ROW_LIGHTS,
-		GATE_LIGHTS = ROW_LIGHTS + 3,
-		NUM_LIGHTS = GATE_LIGHTS + 8
-	};
+Arpeggiator::Arpeggiator() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {
+  onReset();
+}
 
-	bool running = true;
-	SchmittTrigger clockTrigger; // for external clock
-	// For buttons
-	SchmittTrigger runningTrigger;
-	SchmittTrigger resetTrigger;
-	SchmittTrigger gateTriggers[8];
-	float phase = 0.0;
-	int index = 0;
-	bool gateState[8] = {};
-	float resetLight = 0.0;
-	float stepLights[8] = {};
-
-	enum GateMode {
-		TRIGGER,
-		RETRIGGER,
-		CONTINUOUS,
-	};
-	GateMode gateMode = TRIGGER;
-	PulseGenerator gatePulse;
-
-	enum DirectionMode {
-		UP,
-		UP_DOWN,
-		RANDOM,
-	};
-  DirectionMode directionMode = UP;
-  enum RunningDirection {
-    UP_DIR,
-    DOWN_DIR,
-  };
-  RunningDirection runningDirection = UP_DIR;
-
-	Arpeggiator() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {
-		onReset();
-	}
-
-	void step() override;
-  json_t * toJson() override;
-  void fromJson(json_t *rootJ) override;
-
-	void onReset() override {
+void Arpeggiator::onReset() {
 		for (int i = 0; i < 8; ++i)
 			gateState[i] = true;
-	}
+}
 
-	void onRandomize() override {
-		for (int i = 0; i < 8; ++i)
-			gateState[i] = (randomf() > 0.5);
-	}
-
-private:
-
-  float note(int row);
-  void advanceIndex();
-};
+void Arpeggiator::onRandomize() {
+  for (int i = 0; i < 8; ++i)
+    gateState[i] = (randomUniform() > 0.5);
+}
 
 void Arpeggiator::step() {
 	const float lightLambda = 0.075;
@@ -197,7 +110,7 @@ float Arpeggiator::note(int row) {
 }
 
 void Arpeggiator::advanceIndex() {
-  int numSteps = clampi(roundf(params[STEPS_PARAM].value + inputs[STEPS_INPUT].value), 1, 8);
+  int numSteps = clamp(int(params[STEPS_PARAM].value + inputs[STEPS_INPUT].value), 1, 8);
 
   switch (directionMode) {
   case UP:
@@ -231,7 +144,7 @@ void Arpeggiator::advanceIndex() {
     break;
   case RANDOM:
     do {
-      index = randomf() * (numSteps + 1);
+      index = randomu32() % numSteps;
     } while (index >= numSteps);
     break;
   }
@@ -316,9 +229,7 @@ void Arpeggiator::fromJson(json_t *rootJ) {
 
 // ================ widget ================
 
-ArpeggiatorWidget::ArpeggiatorWidget() {
-	Arpeggiator *module = new Arpeggiator();
-	setModule(module);
+ArpeggiatorWidget::ArpeggiatorWidget(Arpeggiator *module) : ModuleWidget(module) {
 	box.size = Vec(15*22, 380);
 
 	{
@@ -328,51 +239,51 @@ ArpeggiatorWidget::ArpeggiatorWidget() {
 		addChild(panel);
 	}
 
-	addChild(createScrew<ScrewSilver>(Vec(15, 0)));
-	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30, 0)));
-	addChild(createScrew<ScrewSilver>(Vec(15, 365)));
-	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30, 365)));
+	addChild(Widget::create<ScrewSilver>(Vec(15, 0)));
+	addChild(Widget::create<ScrewSilver>(Vec(box.size.x-30, 0)));
+	addChild(Widget::create<ScrewSilver>(Vec(15, 365)));
+	addChild(Widget::create<ScrewSilver>(Vec(box.size.x-30, 365)));
 
-	addParam(createParam<RoundSmallBlackKnob>(Vec(18, 56), module, Arpeggiator::CLOCK_PARAM, -2.0, 6.0, 2.0));
-	addParam(createParam<LEDButton>(Vec(60, 61-1), module, Arpeggiator::RUN_PARAM, 0.0, 1.0, 0.0));
-	addChild(createLight<MediumLight<GreenLight>>(Vec(64.4, 64.4), module, Arpeggiator::RUNNING_LIGHT));
-	addParam(createParam<LEDButton>(Vec(99, 61-1), module, Arpeggiator::RESET_PARAM, 0.0, 1.0, 0.0));
-	addChild(createLight<MediumLight<GreenLight>>(Vec(103.4, 64.4), module, Arpeggiator::RESET_LIGHT));
-	addParam(createParam<RoundSmallBlackSnapKnob>(Vec(132, 56), module, Arpeggiator::STEPS_PARAM, 1.0, 8.0, 8.0));
-	addChild(createLight<MediumLight<GreenLight>>(Vec(179.4, 64.4), module, Arpeggiator::GATES_LIGHT));
-	addChild(createLight<MediumLight<GreenLight>>(Vec(218.4, 64.4), module, Arpeggiator::ROW_LIGHTS));
-	addChild(createLight<MediumLight<GreenLight>>(Vec(256.4, 64.4), module, Arpeggiator::ROW_LIGHTS + 1));
-	addChild(createLight<MediumLight<GreenLight>>(Vec(295.4, 64.4), module, Arpeggiator::ROW_LIGHTS + 2));
+	addParam(ParamWidget::create<RoundSmallBlackKnob>(Vec(18, 56), module, Arpeggiator::CLOCK_PARAM, -2.0, 6.0, 2.0));
+	addParam(ParamWidget::create<LEDButton>(Vec(60, 61-1), module, Arpeggiator::RUN_PARAM, 0.0, 1.0, 0.0));
+	addChild(ModuleLightWidget::create<MediumLight<GreenLight>>(Vec(64.4, 64.4), module, Arpeggiator::RUNNING_LIGHT));
+	addParam(ParamWidget::create<LEDButton>(Vec(99, 61-1), module, Arpeggiator::RESET_PARAM, 0.0, 1.0, 0.0));
+	addChild(ModuleLightWidget::create<MediumLight<GreenLight>>(Vec(103.4, 64.4), module, Arpeggiator::RESET_LIGHT));
+	addParam(ParamWidget::create<RoundSmallBlackSnapKnob>(Vec(132, 56), module, Arpeggiator::STEPS_PARAM, 1.0, 8.0, 8.0));
+	addChild(ModuleLightWidget::create<MediumLight<GreenLight>>(Vec(179.4, 64.4), module, Arpeggiator::GATES_LIGHT));
+	addChild(ModuleLightWidget::create<MediumLight<GreenLight>>(Vec(218.4, 64.4), module, Arpeggiator::ROW_LIGHTS));
+	addChild(ModuleLightWidget::create<MediumLight<GreenLight>>(Vec(256.4, 64.4), module, Arpeggiator::ROW_LIGHTS + 1));
+	addChild(ModuleLightWidget::create<MediumLight<GreenLight>>(Vec(295.4, 64.4), module, Arpeggiator::ROW_LIGHTS + 2));
 
 	static const float portX[8] = {20, 58, 96, 135, 173, 212, 250, 289};
 	static const float squishedPortX[8] = {60, 92, 124, 157, 191, 224, 256, 289};
 
-	addInput(createInput<PJ301MPort>(Vec(portX[0]-1, 98), module, Arpeggiator::CLOCK_INPUT));
-	addInput(createInput<PJ301MPort>(Vec(portX[1]-1, 98), module, Arpeggiator::EXT_CLOCK_INPUT));
-	addInput(createInput<PJ301MPort>(Vec(portX[2]-1, 98), module, Arpeggiator::RESET_INPUT));
-	addInput(createInput<PJ301MPort>(Vec(portX[3]-1, 98), module, Arpeggiator::STEPS_INPUT));
-	addOutput(createOutput<PJ301MPort>(Vec(portX[4]-1, 98), module, Arpeggiator::GATES_OUTPUT));
-	addOutput(createOutput<PJ301MPort>(Vec(portX[5]-1, 98), module, Arpeggiator::ROW1_OUTPUT));
-	addOutput(createOutput<PJ301MPort>(Vec(portX[6]-1, 98), module, Arpeggiator::ROW2_OUTPUT));
-	addOutput(createOutput<PJ301MPort>(Vec(portX[7]-1, 98), module, Arpeggiator::ROW3_OUTPUT));
+	addInput(Port::create<PJ301MPort>(Vec(portX[0]-1, 98), Port::INPUT, module, Arpeggiator::CLOCK_INPUT));
+	addInput(Port::create<PJ301MPort>(Vec(portX[1]-1, 98), Port::INPUT, module, Arpeggiator::EXT_CLOCK_INPUT));
+	addInput(Port::create<PJ301MPort>(Vec(portX[2]-1, 98), Port::INPUT, module, Arpeggiator::RESET_INPUT));
+	addInput(Port::create<PJ301MPort>(Vec(portX[3]-1, 98), Port::INPUT, module, Arpeggiator::STEPS_INPUT));
+	addOutput(Port::create<PJ301MPort>(Vec(portX[4]-1, 98), Port::OUTPUT, module, Arpeggiator::GATES_OUTPUT));
+	addOutput(Port::create<PJ301MPort>(Vec(portX[5]-1, 98), Port::OUTPUT, module, Arpeggiator::ROW1_OUTPUT));
+	addOutput(Port::create<PJ301MPort>(Vec(portX[6]-1, 98), Port::OUTPUT, module, Arpeggiator::ROW2_OUTPUT));
+	addOutput(Port::create<PJ301MPort>(Vec(portX[7]-1, 98), Port::OUTPUT, module, Arpeggiator::ROW3_OUTPUT));
 
-  addInput(createInput<PJ301MPort>(Vec(portX[0]-1, 165), module, Arpeggiator::ROW1_PITCH_INPUT));
-  addInput(createInput<PJ301MPort>(Vec(portX[0]-1, 206), module, Arpeggiator::ROW2_PITCH_INPUT));
-  addInput(createInput<PJ301MPort>(Vec(portX[0]-1, 248), module, Arpeggiator::ROW3_PITCH_INPUT));
+  addInput(Port::create<PJ301MPort>(Vec(portX[0]-1, 165), Port::INPUT, module, Arpeggiator::ROW1_PITCH_INPUT));
+  addInput(Port::create<PJ301MPort>(Vec(portX[0]-1, 206), Port::INPUT, module, Arpeggiator::ROW2_PITCH_INPUT));
+  addInput(Port::create<PJ301MPort>(Vec(portX[0]-1, 248), Port::INPUT, module, Arpeggiator::ROW3_PITCH_INPUT));
 
 	for (int i = 0; i < 8; ++i) {
-		addParam(createParam<RoundTinyBlackSnapKnob>(Vec(squishedPortX[i]-2, 157), module, Arpeggiator::ROW1_PARAM + i, 0.0, 11.0, 0.0));
-		addParam(createParam<RoundTinyBlackSnapKnob>(Vec(squishedPortX[i]-2, 198), module, Arpeggiator::ROW2_PARAM + i, 0.0, 11.0, 0.0));
-		addParam(createParam<RoundTinyBlackSnapKnob>(Vec(squishedPortX[i]-2, 240), module, Arpeggiator::ROW3_PARAM + i, 0.0, 11.0, 0.0));
-		addParam(createParam<RoundTinyBlackSnapKnob>(Vec(squishedPortX[i]-2 + 8, 157+16), module, Arpeggiator::ROW1_OCTAVE_PARAM + i, 0.0, 7.0, 4.0));
-		addParam(createParam<RoundTinyBlackSnapKnob>(Vec(squishedPortX[i]-2 + 8, 198+16), module, Arpeggiator::ROW1_OCTAVE_PARAM + i, 0.0, 7.0, 4.0));
-		addParam(createParam<RoundTinyBlackSnapKnob>(Vec(squishedPortX[i]-2 + 8, 240+16), module, Arpeggiator::ROW1_OCTAVE_PARAM + i, 0.0, 7.0, 4.0));
-		addParam(createParam<LEDButton>(Vec(squishedPortX[i]+2, 278-1), module, Arpeggiator::GATE_PARAM + i, 0.0, 1.0, 0.0));
-		addChild(createLight<MediumLight<GreenLight>>(Vec(squishedPortX[i]+6.4, 281.4), module, Arpeggiator::GATE_LIGHTS + i));
-		addOutput(createOutput<PJ301MPort>(Vec(squishedPortX[i]-1, 307), module, Arpeggiator::GATE_OUTPUT + i));
+		addParam(ParamWidget::create<RoundTinyBlackSnapKnob>(Vec(squishedPortX[i]-2, 157), module, Arpeggiator::ROW1_PARAM + i, 0.0, 11.0, 0.0));
+		addParam(ParamWidget::create<RoundTinyBlackSnapKnob>(Vec(squishedPortX[i]-2, 198), module, Arpeggiator::ROW2_PARAM + i, 0.0, 11.0, 0.0));
+		addParam(ParamWidget::create<RoundTinyBlackSnapKnob>(Vec(squishedPortX[i]-2, 240), module, Arpeggiator::ROW3_PARAM + i, 0.0, 11.0, 0.0));
+		addParam(ParamWidget::create<RoundTinyBlackSnapKnob>(Vec(squishedPortX[i]-2 + 8, 157+16), module, Arpeggiator::ROW1_OCTAVE_PARAM + i, 0.0, 7.0, 4.0));
+		addParam(ParamWidget::create<RoundTinyBlackSnapKnob>(Vec(squishedPortX[i]-2 + 8, 198+16), module, Arpeggiator::ROW1_OCTAVE_PARAM + i, 0.0, 7.0, 4.0));
+		addParam(ParamWidget::create<RoundTinyBlackSnapKnob>(Vec(squishedPortX[i]-2 + 8, 240+16), module, Arpeggiator::ROW1_OCTAVE_PARAM + i, 0.0, 7.0, 4.0));
+		addParam(ParamWidget::create<LEDButton>(Vec(squishedPortX[i]+2, 278-1), module, Arpeggiator::GATE_PARAM + i, 0.0, 1.0, 0.0));
+		addChild(ModuleLightWidget::create<MediumLight<GreenLight>>(Vec(squishedPortX[i]+6.4, 281.4), module, Arpeggiator::GATE_LIGHTS + i));
+		addOutput(Port::create<PJ301MPort>(Vec(squishedPortX[i]-1, 307), Port::OUTPUT, module, Arpeggiator::GATE_OUTPUT + i));
 	}
 
-  addParam(createParam<NKK>(Vec(26, 274), module, Arpeggiator::DIRECTION_MODE_PARAM, 0.0, 2.0, 0.0));
+  addParam(ParamWidget::create<NKK>(Vec(26, 274), module, Arpeggiator::DIRECTION_MODE_PARAM, 0.0, 2.0, 0.0));
 }
 
 struct ArpeggiatorGateModeItem : MenuItem {
@@ -407,5 +318,4 @@ Menu *ArpeggiatorWidget::createContextMenu() {
   menu->addChild(new ArpeggiatorGateModeItem("Continuous", arpeg, Arpeggiator::CONTINUOUS));
 
 	return menu;
-
 }

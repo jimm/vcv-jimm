@@ -13,6 +13,18 @@ semitone and the lower right sets the octave.
 
 The voltage input at the left offsets the root pitch for each step.
 
+## Chorderator
+
+A sequencer that generates notes in a chord, spread over a number of
+octaves. Chords are built by specifying inclusion of notes in the scale:
+major/minor third, 7th or major 7th, etc.
+
+There are two clocks: one for stepping between chords and one for the notes
+in each chord.
+
+As with the Arpeggiator, each chord's root can be offset by an input
+voltage.
+
 # Contributing
 
 I welcome Issues and Pull Requests to this repository if you have
