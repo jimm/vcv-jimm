@@ -98,14 +98,9 @@ struct ArpeggiatorWidget : ModuleWidget {
 	Menu *createContextMenu() override;
 };
 
-struct RoundTinyBlackKnob : RoundBlackKnob {
-	RoundTinyBlackKnob() {
-		box.size = Vec(16, 16);
-	}
-};
-
-struct RoundTinyBlackSnapKnob : RoundTinyBlackKnob {
-	RoundTinyBlackSnapKnob() {
+struct SnapTrimpot : Trimpot {
+	SnapTrimpot() : Trimpot() {
 		snap = true;
+    smooth = false;
 	}
 };

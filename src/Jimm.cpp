@@ -6,7 +6,7 @@ Plugin *plugin;
 // For each module, specify the ModuleWidget subclass, manufacturer slug
 // (for saving in patches), manufacturer human-readable name, module slug,
 // and module name
-Model *modelApreggiator =
+Model *modelArpeggiator =
   Model::create<Arpeggiator, ArpeggiatorWidget>("Jimm", "Arpeggiator",
                                                 "Arpeggiator", SEQUENCER_TAG);
 

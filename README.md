@@ -30,6 +30,9 @@ voltage.
 I welcome Issues and Pull Requests to this repository if you have
 suggestions for improvement.
 
+Thank you to Github users @naclander, @jsmonzani, and @phdsg for bug reports
+and suggested fixes.
+
 # Autherial Information Module
 
 - Jim Menard, jim@jimmenard.com
